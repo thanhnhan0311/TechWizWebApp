@@ -17,9 +17,9 @@ namespace TechWizWebApp.Controllers
         }
 
         [HttpPost("testUploadFile")]
-        public IActionResult TestUploadImage(IFormFile file)
+        public async Task<IActionResult> TestUploadImage(IFormFile file)
         {
-            var result = _fileService.UploadImage(file);
+            var result = await _fileService.UploadImageAsync(file);
             return Ok(result);
         }
 
@@ -29,16 +29,7 @@ namespace TechWizWebApp.Controllers
             _mailService.SendMailAsync(emailReceiver, subject, message);
             return Ok("");
         }
-
-        //[HttpPost("testUploadFileWithFireBase")]
-        //public IActionResult TestUploadImagewithFirebase(IFormFile file)
-        //{
-
-        //    FileStream stream;
-
-
-        //    return Ok();
-        //}
+        
 
     }
 }

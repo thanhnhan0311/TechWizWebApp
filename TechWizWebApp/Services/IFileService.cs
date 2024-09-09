@@ -6,20 +6,21 @@ namespace TechWizWebApp.Services
 {
     public interface IFileService
     {
-        public Task<string> UploadImage(IFormFile image);
-        public Task UploadImageWithFirebase(FileStream fileStream, string filename);
+        public Task<string> UploadImageAsync(IFormFile image);
+        
 
     }
     public class FileService : IFileService
     {
         private readonly IWebHostEnvironment _env;
-
-        public FileService(IWebHostEnvironment hostingEnvironment)
+        private readonly IConfiguration _configuration;
+        public FileService(IWebHostEnvironment hostingEnvironment, IConfiguration configuration)
         {
             _env = hostingEnvironment;
+            _configuration = configuration;
         }
 
-        public async Task<string> UploadImage(IFormFile image)
+        public async Task<string> UploadImageAsync(IFormFile image)
         {
             // Kiem tra neu folder da duoc tao chua
             var folderImagePath = CreateFolderIfNotExist();
@@ -28,28 +29,36 @@ namespace TechWizWebApp.Services
             var extension = Path.GetExtension(image.FileName).ToLower();
             if (!CheckExtension(extension))
             {
-                return "Invalid file extension.";
+                return @"Invalid file extension (.jpg, .jpeg, .png, .gif).";
             }
 
             // Tao filename theo Guid de tranh trung lap
             var fileName = GetRandomFilename(extension);
             var filePath = Path.Combine(folderImagePath, fileName);
+
+            // Upload image trong server
             using (var stream = new FileStream(filePath, FileMode.Create))
             {
-               // await Task.Run(() => UploadImageWithFirebase(stream,fileName));
-                image.CopyTo(stream);
+                await image.CopyToAsync(stream);                
             }
 
-            return filePath;
+
+            //Upload image trong firebase(cloud)
+            using (var firebaseStream = new FileStream(filePath, FileMode.Open, FileAccess.Read))
+            {
+                await UploadImageWithFirebaseAsync(firebaseStream, fileName); // Tải lên Firebase
+            }
+
+            return fileName;
         }
 
 
-        public async Task UploadImageWithFirebase(FileStream fileStream, string filename)
+        private async Task UploadImageWithFirebaseAsync(FileStream fileStream, string filename)
         {
-            string ApiKey = "AIzaSyBhlhuPkt4edumjWfbU1rDjHzjlspGkj6c";
-            string Bucket = "techwizwebapp.appspot.com";
-            string AuthEmail = "techwiz5@gmail.com";
-            string AuthPassword = "123456";
+            string ApiKey = _configuration["FirebaseSettings:ApiKey"];
+            string Bucket = _configuration["FirebaseSettings:Bucket"];
+            string AuthEmail = _configuration["FirebaseSettings:AuthEmail"];
+            string AuthPassword = _configuration["FirebaseSettings:AuthPassword"];
 
             var auth = new FirebaseAuthProvider(new FirebaseConfig(ApiKey));
             var a = await auth.SignInWithEmailAndPasswordAsync(AuthEmail, AuthPassword);
@@ -72,17 +81,11 @@ namespace TechWizWebApp.Services
             }
             catch (Exception e)
             {
-                Console.WriteLine("Exception was thrown: {0}", e);
+                Console.WriteLine("Exception was thrown: {0}", e.Message);
                 throw;
-            }
-
-            throw new NotImplementedException();
+            }            
         }
-
-
-
-
-        // private 
+        
         private string CreateFolderIfNotExist()
         {
             var folderPath = Path.Combine(_env.ContentRootPath, "Images");
